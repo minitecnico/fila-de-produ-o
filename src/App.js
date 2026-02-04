@@ -24,21 +24,24 @@ function App() {
     return unsubscribe;
   }, []);
 
-  // Lógica de comparação inteligente de nomes
-  const ehOResponsavel = (nomeResponsavel) => {
-    if (!nomeResponsavel || !operador) return false;
-    const op = operador.trim().toUpperCase();
-    const resp = nomeResponsavel.trim().toUpperCase();
+  // FUNÇÃO DE COMPARAÇÃO REFORMULADA (Mais rigorosa)
+  const validarOperador = (nomeNoCard) => {
+    if (!operador.trim() || !nomeNoCard) return false;
     
-    // Verifica se são iguais, ou se o primeiro nome bate, ou se um contém o outro
-    return op === resp || resp.includes(op) || op.includes(resp.split(' ')[0]);
+    const atual = operador.trim().toUpperCase();
+    const dono = nomeNoCard.trim().toUpperCase();
+
+    // Retorna verdadeiro se o nome for idêntico ou se o primeiro nome bater exatamente
+    const primeiroNomeAtual = atual.split(' ')[0];
+    const primeiroNomeDono = dono.split(' ')[0];
+
+    return atual === dono || primeiroNomeAtual === primeiroNomeDono;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     let nomeFinal = formData.orgao.toUpperCase();
     if (nomeFinal && !nomeFinal.startsWith('PM ')) nomeFinal = `PM ${nomeFinal}`;
-
     if (!nomeFinal || !formData.servico) return alert("Preencha os dados!");
 
     try {
@@ -56,91 +59,104 @@ function App() {
   };
 
   const iniciarDemanda = async (id) => {
-    if (!operador.trim()) return alert("Identifique-se no campo OPERADOR antes de assumir!");
+    const nomeLimpo = operador.trim().toUpperCase();
+    if (!nomeLimpo) {
+      alert("ERRO: Digite seu nome no campo OPERADOR antes de assumir qualquer tarefa!");
+      return;
+    }
     await updateDoc(doc(db, "contratos", id), { 
       status: 'PRODUCAO',
-      responsavel: operador.trim().toUpperCase() 
+      responsavel: nomeLimpo
     });
   };
 
   const concluirDemanda = async (id, nomeResponsavel) => {
-    if (!ehOResponsavel(nomeResponsavel)) {
-      alert(`⚠️ Atenção: Esta demanda pertence a ${nomeResponsavel}. Somente ele(a) pode concluir.`);
+    // A TRAVA REAL ESTÁ AQUI:
+    if (!validarOperador(nomeResponsavel)) {
+      alert(`⛔ ACESSO NEGADO: Esta tarefa pertence a ${nomeResponsavel}. Você está logado como ${operador.toUpperCase()}. Cada operador só finaliza o que assumiu!`);
       return;
     }
     await updateDoc(doc(db, "contratos", id), { status: 'CONCLUIDO' });
   };
 
   return (
-    <div className="p-4 md:p-10 bg-slate-50 min-h-screen font-sans text-slate-900">
+    <div className="p-4 md:p-10 bg-slate-100 min-h-screen font-sans">
       <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
         
         <div className="space-y-6">
-          {/* PAINEL DO OPERADOR - SENSO DE IDENTIDADE */}
-          <div className={`p-5 rounded-2xl shadow-lg transition-all border-b-4 ${operador ? 'bg-blue-600 border-blue-800' : 'bg-slate-800 border-red-500'}`}>
-            <label className="text-[10px] font-black uppercase tracking-widest text-white opacity-70">Operador Ativo</label>
+          {/* IDENTIFICAÇÃO OBRIGATÓRIA */}
+          <div className={`p-5 rounded-2xl shadow-inner transition-all ${operador ? 'bg-green-600' : 'bg-red-500'} text-white`}>
+            <h4 className="text-[10px] font-black uppercase tracking-widest mb-2">Painel de Identificação</h4>
             <input 
-              className="w-full bg-white/10 border-none rounded-lg p-3 mt-2 text-white placeholder:text-white/30 outline-none focus:ring-2 focus:ring-white font-bold"
-              placeholder="Digite seu nome..."
+              className="w-full bg-white/20 border-none rounded-lg p-3 text-white placeholder:text-white/50 outline-none focus:ring-2 focus:ring-white font-black uppercase"
+              placeholder="QUEM É VOCÊ?"
               value={operador}
               onChange={(e) => setOperador(e.target.value)}
             />
-            {!operador && <p className="text-[9px] text-red-300 mt-2 font-bold animate-pulse">⚠️ Identifique-se para assumir tarefas</p>}
+            {!operador && <p className="text-[10px] mt-2 font-bold animate-pulse">SISTEMA BLOQUEADO: INSIRA SEU NOME</p>}
           </div>
 
-          <div className="bg-white p-6 rounded-2xl shadow-xl border border-slate-200">
-            <h2 className="text-xl font-black mb-6 text-slate-700 uppercase italic">Novo Lançamento</h2>
+          <div className="bg-white p-6 rounded-3xl shadow-xl border border-slate-200">
+            <h2 className="text-xl font-black mb-6 text-slate-800 uppercase italic">Novo Registro</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <input ref={orgaoInputRef} className="w-full p-3 border rounded-xl bg-slate-50 font-bold uppercase" placeholder="Cidade" onChange={e => setFormData({...formData, orgao: e.target.value})} value={formData.orgao} />
-              <input list="listaServicos" className="w-full p-3 border rounded-xl bg-slate-50 font-bold" placeholder="Serviço" onChange={e => setFormData({...formData, servico: e.target.value})} value={formData.servico} />
+              <input ref={orgaoInputRef} className="w-full p-4 border-2 rounded-2xl bg-slate-50 font-bold" placeholder="CIDADE" onChange={e => setFormData({...formData, orgao: e.target.value})} value={formData.orgao} />
+              <input list="listaServicos" className="w-full p-4 border-2 rounded-2xl bg-slate-50 font-bold" placeholder="SERVIÇO" onChange={e => setFormData({...formData, servico: e.target.value})} value={formData.servico} />
               <datalist id="listaServicos">{sugestoesServico.map((s, i) => <option key={i} value={s} />)}</datalist>
-              <input list="listaFontes" className="w-full p-3 border rounded-xl bg-slate-50 font-bold" placeholder="Fonte" onChange={e => setFormData({...formData, fonte: e.target.value})} value={formData.fonte} />
+              <input list="listaFontes" className="w-full p-4 border-2 rounded-2xl bg-slate-50 font-bold" placeholder="FONTE" onChange={e => setFormData({...formData, fonte: e.target.value})} value={formData.fonte} />
               <datalist id="listaFontes">{sugestoesFonte.map((f, i) => <option key={i} value={f} />)}</datalist>
-              <button type="submit" className="w-full bg-slate-900 text-white p-4 rounded-xl font-black shadow-lg hover:bg-black transition-all uppercase text-xs">Lançar na Fila</button>
+              <button type="submit" className="w-full bg-slate-900 text-white p-4 rounded-2xl font-black hover:bg-black transition-all uppercase">Lançar Demanda</button>
             </form>
           </div>
         </div>
 
         <div className="lg:col-span-2">
-          <h2 className="text-2xl font-black uppercase text-slate-400 mb-6 italic tracking-tighter">Fila de Trabalho Real-Time</h2>
+          <header className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-black uppercase text-slate-400 italic">Fila de Produção</h2>
+          </header>
           
           <div className="space-y-4">
             <AnimatePresence mode='popLayout'>
               {contratos.map((c, index) => {
-                const souEu = ehOResponsavel(c.responsavel);
-                const ocupadoPorOutro = c.responsavel && !souEu;
+                const souEu = validarOperador(c.responsavel);
+                const bloqueado = c.responsavel && !souEu;
 
                 return (
                   <motion.div 
-                    key={c.id} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                    className={`flex items-center justify-between p-5 rounded-2xl shadow-md transition-all border-l-[12px] 
-                      ${ocupadoPorOutro ? 'bg-slate-100 opacity-60 border-slate-300' : 'bg-white border-blue-600'} 
-                      ${souEu ? 'ring-4 ring-yellow-400 border-yellow-400' : ''}`}
+                    key={c.id} layout initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }}
+                    className={`flex items-center justify-between p-6 rounded-3xl shadow-sm border-b-4 transition-all
+                      ${bloqueado ? 'bg-slate-200 grayscale opacity-50 border-slate-300' : 'bg-white border-blue-500'} 
+                      ${souEu ? 'border-green-500 ring-4 ring-green-100 scale-[1.02]' : ''}`}
                   >
                     <div className="flex-1">
-                      <h3 className={`font-black text-lg uppercase ${ocupadoPorOutro ? 'text-slate-400' : 'text-slate-800'}`}>{c.orgao}</h3>
-                      <p className="font-black text-blue-600 uppercase text-xs italic">{c.servico}</p>
+                      <h3 className="font-black text-xl uppercase text-slate-800 tracking-tighter">{c.orgao}</h3>
+                      <p className="font-bold text-blue-600 uppercase text-sm italic">{c.servico}</p>
                       
-                      <div className="flex flex-wrap gap-2 mt-4">
-                        <span className="text-[9px] font-black bg-slate-200 text-slate-500 px-2 py-1 rounded">🕒 {c.created_at?.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                      <div className="flex gap-2 mt-4">
+                        <span className="text-[10px] font-black bg-white border px-2 py-1 rounded-lg text-slate-400 uppercase">🕒 {c.created_at?.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                         {c.responsavel && (
-                          <span className={`text-[9px] font-black px-2 py-1 rounded shadow-sm ${souEu ? 'bg-yellow-400 text-yellow-900 animate-bounce' : 'bg-slate-300 text-slate-600'}`}>
-                            👤 {souEu ? "SUA TAREFA" : `COM: ${c.responsavel}`}
+                          <span className={`text-[10px] font-black px-3 py-1 rounded-lg uppercase shadow-sm ${souEu ? 'bg-green-500 text-white animate-pulse' : 'bg-slate-400 text-white'}`}>
+                            {souEu ? "✅ MINHA TAREFA" : `👤 RESP: ${c.responsavel}`}
                           </span>
                         )}
                       </div>
                     </div>
 
-                    <div className="flex flex-col items-end gap-3 ml-4">
+                    <div className="ml-4">
                       {c.status === 'RECEBIDO' ? (
-                        <button onClick={() => iniciarDemanda(c.id)} className="bg-blue-600 hover:bg-blue-700 text-white font-black py-2 px-6 rounded-lg text-[10px] uppercase shadow-md">ASSUMIR</button>
+                        <button 
+                          onClick={() => iniciarDemanda(c.id)} 
+                          disabled={!operador}
+                          className="bg-blue-600 text-white font-black py-3 px-6 rounded-2xl text-xs uppercase hover:bg-blue-700 disabled:bg-slate-300 transition-all shadow-lg"
+                        >
+                          Assumir
+                        </button>
                       ) : (
                         <button 
                           onClick={() => concluirDemanda(c.id, c.responsavel)} 
-                          className={`py-2 px-6 rounded-lg text-[10px] font-black uppercase shadow-md transition-all 
-                            ${souEu ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-slate-300 text-slate-400 cursor-not-allowed'}`}
+                          className={`py-3 px-6 rounded-2xl text-xs font-black uppercase shadow-lg transition-all 
+                            ${souEu ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-slate-400 text-slate-200 cursor-not-allowed'}`}
                         >
-                          CONCLUIR
+                          Concluir
                         </button>
                       )}
                     </div>
