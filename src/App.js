@@ -48,14 +48,14 @@ function App() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!operadorAtual) return alert("Selecione um operador!");
+    if (!operadorAtual) return alert("Selecione um operador no topo!");
     let cidade = formData.orgao.toUpperCase();
     if (cidade && !cidade.startsWith('PM ')) cidade = `PM ${cidade}`;
     
     await addDoc(collection(db, "contratos"), {
       orgao: cidade, 
       servico: formData.servico.toUpperCase(), 
-      fonte: formData.fonte.toUpperCase(),
+      fonte: formData.fonte.toUpperCase(), // SALVANDO A ORIGEM AQUI
       status: 'RECEBIDO', 
       responsavel: '', 
       created_at: serverTimestamp()
@@ -78,12 +78,12 @@ function App() {
   const exportarRelatorio = (tipo) => {
     const filtrados = contratos.filter(c => c.status === 'CONCLUIDO' && c.finished_at?.split('T')[0] === filtroData);
     if (tipo === 'excel') {
-      const ws = XLSX.utils.json_to_sheet(filtrados.map(t => ({ Orgão: t.orgao, Serviço: t.servico, Fonte: t.fonte, Operador: t.responsavel, Hora: formatarData(t.finished_at) })));
+      const ws = XLSX.utils.json_to_sheet(filtrados.map(t => ({ Orgão: t.orgao, Serviço: t.servico, Origem: t.fonte, Operador: t.responsavel, Hora: formatarData(t.finished_at) })));
       const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Produção");
       XLSX.writeFile(wb, `Relatorio_${filtroData}.xlsx`);
     } else {
       const docPDF = new jsPDF();
-      docPDF.autoTable({ head: [['Cidade', 'Serviço', 'Fonte', 'Operador', 'Conclusão']], body: filtrados.map(t => [t.orgao, t.servico, t.fonte, t.responsavel, formatarData(t.finished_at)]) });
+      docPDF.autoTable({ head: [['Cidade', 'Serviço', 'Origem', 'Operador', 'Conclusão']], body: filtrados.map(t => [t.orgao, t.servico, t.fonte, t.responsavel, formatarData(t.finished_at)]) });
       docPDF.save(`Relatorio_${filtroData}.pdf`);
     }
   };
@@ -119,7 +119,7 @@ function App() {
 
           {/* LOGIN OPERADOR (FIXO) */}
           <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200">
-            <label className="text-[10px] font-black uppercase text-slate-400 mb-3 block italic">Operador Atual:</label>
+            <label className="text-[10px] font-black uppercase text-slate-400 mb-3 block italic">Operador do Turno:</label>
             {!operadorAtual ? (
               <select className="w-full p-4 bg-slate-50 rounded-2xl font-bold text-sm outline-none border border-slate-100 focus:ring-2 focus:ring-blue-100 transition-all" 
                 onChange={(e) => setOperadorAtual(operadoresDB.find(o => o.id === e.target.value))}>
@@ -139,11 +139,15 @@ function App() {
              <h2 className="text-sm font-black mb-6 uppercase text-slate-400 text-center tracking-widest italic">Nova Demanda</h2>
              <form onSubmit={handleSubmit} className="space-y-4">
                 <input ref={orgaoInputRef} required className="w-full p-4 bg-slate-50 rounded-2xl font-bold uppercase outline-none border border-transparent focus:border-slate-200 text-sm" placeholder="CIDADE / ÓRGÃO" value={formData.orgao} onChange={e => setFormData({...formData, orgao: e.target.value})} />
+                
                 <input list="servs" required className="w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none border border-transparent focus:border-slate-200 text-sm" placeholder="SERVIÇO" value={formData.servico} onChange={e => setFormData({...formData, servico: e.target.value})} />
                 <datalist id="servs">
                    {["CONTRATO", "E-MAIL", "WhatsApp", "ADITIVO", "APRESENTAÇÃO SICC", "PROPOSTA"].map(s => <option key={s} value={s} />)}
                 </datalist>
-                <input className="w-full p-4 bg-slate-50 rounded-2xl font-bold uppercase outline-none border border-transparent focus:border-slate-200 text-sm" placeholder="FONTE / ORIGEM" value={formData.fonte} onChange={e => setFormData({...formData, fonte: e.target.value})} />
+
+                {/* CAMPO ORIGEM ESTÁ AQUI */}
+                <input required className="w-full p-4 bg-slate-50 rounded-2xl font-bold uppercase outline-none border border-transparent focus:border-slate-200 text-sm" placeholder="ORIGEM (Ex: WhatsApp, E-mail)" value={formData.fonte} onChange={e => setFormData({...formData, fonte: e.target.value})} />
+                
                 <button type="submit" className="w-full bg-slate-900 text-white p-5 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl active:scale-95 transition-all">Registrar na Fila</button>
              </form>
           </div>
@@ -175,7 +179,7 @@ function App() {
                   </div>
                   <div className="flex gap-2 items-center mt-1 ml-10">
                     <p className="font-black text-blue-500 uppercase text-[11px]">{c.servico}</p>
-                    <span className="text-slate-300 text-[10px] font-bold">• {c.fonte || 'S/ FONTE'}</span>
+                    <span className="text-slate-400 text-[10px] font-black bg-slate-100 px-2 py-0.5 rounded uppercase tracking-tighter">ORIGEM: {c.fonte || 'N/A'}</span>
                   </div>
                   {c.responsavel && <p className="text-[9px] font-black text-orange-400 uppercase mt-2 ml-10 italic">Produção: {c.responsavel}</p>}
                 </div>
@@ -200,12 +204,12 @@ function App() {
                   <div key={item.id} className="bg-white p-5 rounded-[1.5rem] flex justify-between items-center shadow-sm border border-slate-50">
                     <div className="flex-1">
                       <p className="font-black text-slate-600 uppercase text-[11px]">{item.orgao}</p>
-                      <p className="text-[9px] font-bold text-blue-400 uppercase">{item.servico} <span className="text-slate-300 ml-1">({item.fonte})</span></p>
+                      <p className="text-[9px] font-bold text-blue-400 uppercase">{item.servico} <span className="text-slate-400 ml-1">| ORIGEM: {item.fonte}</span></p>
                     </div>
                     <div className="text-right flex flex-col items-end">
                       <span className="text-[9px] font-black text-slate-400 uppercase">Operador: {item.responsavel}</span>
                       <span className="text-[10px] font-bold text-green-500 bg-green-50 px-3 py-1 rounded-full mt-1">✓ {formatarData(item.finished_at)}</span>
-                      {isAdmin && <button onClick={() => deletarAtividade(item.id)} className="text-[8px] text-red-300 mt-2 uppercase font-bold hover:text-red-500 transition-all">Excluir Registro</button>}
+                      {isAdmin && <button onClick={() => deletarAtividade(item.id)} className="text-[8px] text-red-300 mt-2 uppercase font-bold hover:text-red-500 transition-all">Excluir Log</button>}
                     </div>
                   </div>
                 ))}
