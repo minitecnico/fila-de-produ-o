@@ -10,11 +10,14 @@
     "@testing-library/user-event": "^13.5.0",
     "firebase": "^12.8.0",
     "framer-motion": "^12.31.0",
+    "jspdf": "^2.5.1",
+    "jspdf-autotable": "^3.8.2",
     "postcss-loader": "^8.2.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-scripts": "5.0.1",
-    "web-vitals": "^2.1.4"
+    "web-vitals": "^2.1.4",
+    "xlsx": "^0.18.5"
   },
   "scripts": {
     "start": "react-scripts start",
