@@ -11,10 +11,18 @@ function App() {
   const [formData, setFormData] = useState({ orgao: '', servico: '', fonte: '' });
   const [operador, setOperador] = useState('');
   const [mostrarHistorico, setMostrarHistorico] = useState(false);
+  const [filtroData, setFiltroData] = useState(new Date().toISOString().split('T')[0]);
   const orgaoInputRef = useRef(null);
 
-  const sugestoesServico = ["CONTRATO", "E-MAIL", "WhatsApp", "ADITIVO", "APRESENTAÇÃO SICC", "SUPORTE TÉCNICO", "TREINAMENTO"];
-  const sugestoesFonte = ["Portal", "WhatsApp", "E-mail", "Telefone", "Ofício"];
+  // FRASES MOTIVACIONAIS
+  const frases = [
+    "O sucesso é a soma de pequenos esforços repetidos dia após dia.",
+    "Trabalhar em equipe divide as tarefas e multiplica o sucesso!",
+    "Meta dada é meta batida. Vamos com tudo!",
+    "A excelência não é um ato, mas um hábito. Bom trabalho!",
+    "Foco no processo, o resultado é consequência do seu esforço."
+  ];
+  const fraseDoDia = frases[new Date().getDay() % frases.length];
 
   useEffect(() => {
     const q = query(collection(db, "contratos"), orderBy("created_at", "asc"));
@@ -35,7 +43,7 @@ function App() {
         orgao: nomeFinal,
         servico: formData.servico.toUpperCase(),
         fonte: formData.fonte.toUpperCase(),
-        status: 'RECEBIDO', // COR VERMELHA
+        status: 'RECEBIDO',
         responsavel: '',
         created_at: serverTimestamp()
       });
@@ -47,116 +55,140 @@ function App() {
   const alterarStatus = async (id, novoStatus) => {
     const data = { status: novoStatus };
     if (novoStatus === 'PRODUCAO') data.responsavel = operador.toUpperCase() || 'EQUIPE';
+    if (novoStatus === 'CONCLUIDO') data.finished_at = new Date().toISOString();
     await updateDoc(doc(db, "contratos", id), data);
   };
 
-  // Filtros para as listas
+  // EXPORTAR RELATÓRIO
+  const exportarRelatorio = () => {
+    const tarefasFiltradas = contratos.filter(c => {
+      const dataTarefa = c.finished_at?.split('T')[0];
+      return c.status === 'CONCLUIDO' && dataTarefa === filtroData;
+    });
+
+    if (tarefasFiltradas.length === 0) return alert("Nenhuma tarefa concluída nesta data.");
+
+    let conteudo = `RELATÓRIO DE DEMANDAS - DATA: ${filtroData}\n\n`;
+    tarefasFiltradas.forEach((t, i) => {
+      conteudo += `${i+1}. ${t.orgao} | SERVIÇO: ${t.servico} | RESP: ${t.responsavel}\n`;
+    });
+
+    const blob = new Blob([conteudo], { type: 'text/plain' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `Relatorio_${filtroData}.txt`;
+    link.click();
+  };
+
   const filaAtiva = contratos.filter(c => c.status !== 'CONCLUIDO');
   const historico = contratos.filter(c => c.status === 'CONCLUIDO');
 
   return (
     <div className="p-4 md:p-10 bg-slate-50 min-h-screen font-sans text-slate-900">
+      
+      {/* HEADER MOTIVACIONAL */}
+      <div className="max-w-6xl mx-auto mb-10 flex flex-col md:flex-row justify-between items-center bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
+        <div>
+          <h1 className="text-sm font-black text-blue-600 uppercase tracking-[0.3em]">{new Date().toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</h1>
+          <p className="text-slate-500 italic font-medium mt-1">"{fraseDoDia}"</p>
+        </div>
+        <div className="mt-4 md:mt-0 bg-blue-50 px-6 py-2 rounded-full border border-blue-100">
+          <span className="text-xs font-black text-blue-700 uppercase">Status: Operacional 🚀</span>
+        </div>
+      </div>
+
       <LayoutGroup>
         <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
           
           {/* PAINEL LATERAL */}
           <div className="space-y-6">
-            <motion.div initial={{ x: -50, opacity: 0 }} animate={{ x: 0, opacity: 1 }} className="bg-slate-900 p-5 rounded-3xl shadow-2xl text-white">
-              <label className="text-[10px] font-black uppercase tracking-[0.2em] opacity-50">Operador Atual</label>
-              <input 
-                className="w-full bg-slate-800 border-none rounded-2xl p-4 mt-2 text-white font-bold outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="SEU NOME..."
-                value={operador}
-                onChange={(e) => setOperador(e.target.value)}
-              />
-            </motion.div>
+            <div className="bg-slate-900 p-6 rounded-3xl shadow-2xl">
+              <label className="text-[10px] font-black uppercase text-blue-400">Configuração do Operador</label>
+              <input className="w-full bg-slate-800 border-none rounded-2xl p-4 mt-2 text-white font-bold outline-none focus:ring-2 focus:ring-blue-500" placeholder="SEU NOME..." value={operador} onChange={(e) => setOperador(e.target.value)} />
+            </div>
 
-            <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2 }} className="bg-white p-8 rounded-[2rem] shadow-xl border border-slate-100">
-              <h2 className="text-2xl font-black mb-8 text-slate-800 italic uppercase tracking-tighter underline decoration-blue-500 underline-offset-8">Novo Lançamento</h2>
-              <form onSubmit={handleSubmit} className="space-y-5">
-                <input ref={orgaoInputRef} className="w-full p-4 border-2 border-slate-100 rounded-2xl bg-slate-50 font-bold uppercase focus:border-blue-500 outline-none transition-all" placeholder="CIDADE" onChange={e => setFormData({...formData, orgao: e.target.value})} value={formData.orgao} />
-                <input list="s-serv" className="w-full p-4 border-2 border-slate-100 rounded-2xl bg-slate-50 font-bold focus:border-blue-500 outline-none transition-all" placeholder="SERVIÇO" onChange={e => setFormData({...formData, servico: e.target.value})} value={formData.servico} />
-                <datalist id="s-serv">{sugestoesServico.map(s => <option key={s} value={s} />)}</datalist>
-                <input list="s-font" className="w-full p-4 border-2 border-slate-100 rounded-2xl bg-slate-50 font-bold focus:border-blue-500 outline-none transition-all" placeholder="FONTE" onChange={e => setFormData({...formData, fonte: e.target.value})} value={formData.fonte} />
-                <datalist id="s-font">{sugestoesFonte.map(f => <option key={f} value={f} />)}</datalist>
-                <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white p-5 rounded-2xl font-black shadow-lg shadow-blue-200 transition-all uppercase tracking-widest text-sm">Lançar Demanda</button>
+            <div className="bg-white p-8 rounded-[2rem] shadow-xl border border-slate-100">
+              <h2 className="text-xl font-black mb-6 uppercase italic decoration-blue-500 underline underline-offset-8">Lançar Demanda</h2>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <input ref={orgaoInputRef} className="w-full p-4 border-2 border-slate-50 rounded-2xl bg-slate-50 font-bold uppercase outline-none focus:border-blue-500 transition-all" placeholder="CIDADE (Ex: Itajuipe)" onChange={e => setFormData({...formData, orgao: e.target.value})} value={formData.orgao} />
+                <input list="s-serv" className="w-full p-4 border-2 border-slate-50 rounded-2xl bg-slate-50 font-bold outline-none focus:border-blue-500" placeholder="SERVIÇO" onChange={e => setFormData({...formData, servico: e.target.value})} value={formData.servico} />
+                <datalist id="s-serv">
+                   {["CONTRATO", "E-MAIL", "WhatsApp", "ADITIVO", "APRESENTAÇÃO SICC"].map(s => <option key={s} value={s} />)}
+                </datalist>
+                <input className="w-full p-4 border-2 border-slate-50 rounded-2xl bg-slate-50 font-bold outline-none focus:border-blue-500" placeholder="FONTE" onChange={e => setFormData({...formData, fonte: e.target.value})} value={formData.fonte} />
+                <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white p-5 rounded-2xl font-black shadow-lg transition-all uppercase text-xs tracking-widest">Registrar na Fila</button>
               </form>
-            </motion.div>
+            </div>
+
+            {/* RELATÓRIO EXPRESSO */}
+            <div className="bg-white p-6 rounded-[2rem] shadow-md border border-slate-100">
+              <h3 className="text-xs font-black uppercase mb-4 text-slate-400">Exportar Tarefas do Dia</h3>
+              <input type="date" className="w-full p-3 border rounded-xl mb-3 text-sm font-bold" value={filtroData} onChange={(e) => setFiltroData(e.target.value)} />
+              <button onClick={exportarRelatorio} className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 p-3 rounded-xl font-bold text-[10px] uppercase transition-all">Download Relatório .TXT</button>
+            </div>
           </div>
 
           {/* FILA DE PRODUÇÃO */}
-          <div className="lg:col-span-2 space-y-6">
-            <h2 className="text-3xl font-black uppercase text-slate-300 italic tracking-tighter px-2">Painel de Controle</h2>
+          <div className="lg:col-span-2 space-y-4">
+            <h2 className="text-2xl font-black uppercase text-slate-300 italic mb-4">Fila de Prioridade</h2>
             
-            <div className="space-y-4">
-              <AnimatePresence mode='popLayout'>
-                {filaAtiva.map((c) => (
-                  <motion.div 
-                    key={c.id} layout
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, x: 100 }}
-                    transition={{ type: "spring", stiffness: 300, damping: 25 }}
-                    className={`flex flex-col md:flex-row items-center justify-between p-6 rounded-[2rem] shadow-lg border-l-[15px] bg-white transition-colors duration-500 
-                      ${c.status === 'RECEBIDO' ? 'border-red-500' : 'border-orange-500'}`}
-                  >
-                    <div className="flex-1 w-full">
-                      <div className="flex items-center gap-3">
-                        <h3 className="font-black text-2xl uppercase text-slate-800 tracking-tighter">{c.orgao}</h3>
-                        <span className={`text-[10px] font-black px-3 py-1 rounded-full uppercase ${c.status === 'RECEBIDO' ? 'bg-red-100 text-red-600' : 'bg-orange-100 text-orange-600'}`}>
-                          {c.status === 'RECEBIDO' ? 'Aguardando' : 'Em Produção'}
-                        </span>
-                      </div>
-                      <p className="font-black text-blue-600 uppercase text-sm mt-1">{c.servico}</p>
-                      
-                      <div className="flex gap-4 mt-4">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase">🕒 {c.created_at?.toDate().toLocaleTimeString()}</span>
-                        {c.responsavel && <span className="text-[10px] font-black text-orange-600 uppercase bg-orange-50 px-2 py-0.5 rounded">👤 {c.responsavel}</span>}
-                      </div>
+            <AnimatePresence mode='popLayout'>
+              {filaAtiva.map((c, index) => (
+                <motion.div 
+                  key={c.id} layout initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, scale: 0.5 }}
+                  className={`flex flex-col md:flex-row items-center justify-between p-6 rounded-[2rem] shadow-lg border-l-[15px] bg-white transition-all 
+                    ${c.status === 'RECEBIDO' ? 'border-red-500' : 'border-orange-500'}`}
+                >
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3">
+                      <span className="bg-slate-900 text-white w-8 h-8 rounded-full flex items-center justify-center font-black text-xs">#{index + 1}</span>
+                      <h3 className="font-black text-xl uppercase text-slate-800 tracking-tighter">{c.orgao}</h3>
                     </div>
-
-                    <div className="flex gap-3 mt-4 md:mt-0">
-                      {c.status === 'RECEBIDO' ? (
-                        <button onClick={() => alterarStatus(c.id, 'PRODUCAO')} className="bg-orange-500 hover:bg-orange-600 text-white font-black py-4 px-8 rounded-2xl text-xs uppercase shadow-lg shadow-orange-100 transition-all">Iniciar</button>
-                      ) : (
-                        <button onClick={() => alterarStatus(c.id, 'CONCLUIDO')} className="bg-green-500 hover:bg-green-600 text-white font-black py-4 px-8 rounded-2xl text-xs uppercase shadow-lg shadow-green-100 transition-all">Finalizar</button>
-                      )}
+                    <p className="font-black text-blue-600 uppercase text-xs mt-1 ml-11">{c.servico}</p>
+                    <div className="flex gap-4 mt-3 ml-11">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">🕒 {c.created_at?.toDate().toLocaleTimeString()}</span>
+                      {c.responsavel && <span className="text-[10px] font-black text-orange-600 uppercase bg-orange-50 px-2 py-0.5 rounded">👤 {c.responsavel}</span>}
                     </div>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-            </div>
+                  </div>
 
-            {/* HISTÓRICO DISCRETO */}
-            <div className="mt-20">
-              <button 
-                onClick={() => setMostrarHistorico(!mostrarHistorico)}
-                className="flex items-center gap-2 text-slate-400 font-black uppercase text-xs hover:text-slate-600 transition-all mb-4"
-              >
-                {mostrarHistorico ? '▼ Ocultar Concluídos' : '▶ Ver Histórico Concluído'} ({historico.length})
-              </button>
+                  <div className="mt-4 md:mt-0 flex gap-2">
+                    {c.status === 'RECEBIDO' ? (
+                      <button onClick={() => alterarStatus(c.id, 'PRODUCAO')} className="bg-orange-500 text-white font-black py-3 px-6 rounded-2xl text-[10px] uppercase shadow-md hover:scale-105 transition-all">Iniciar</button>
+                    ) : (
+                      <button onClick={() => alterarStatus(c.id, 'CONCLUIDO')} className="bg-green-500 text-white font-black py-3 px-6 rounded-2xl text-[10px] uppercase shadow-md hover:scale-105 transition-all">Finalizar</button>
+                    )}
+                  </div>
+                </motion.div>
+              ))}
+            </AnimatePresence>
 
-              <AnimatePresence>
-                {mostrarHistorico && (
-                  <motion.div 
-                    initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
-                    className="overflow-hidden space-y-3"
-                  >
-                    {historico.map(h => (
-                      <motion.div 
-                        layout key={h.id}
-                        className="bg-white/50 border-l-8 border-green-500 p-4 rounded-2xl flex justify-between items-center opacity-70 grayscale hover:grayscale-0 hover:opacity-100 transition-all"
-                      >
-                        <div>
-                          <h4 className="font-black text-slate-700 uppercase text-sm">{h.orgao}</h4>
-                          <p className="text-[10px] font-bold text-slate-400">{h.servico} - Finalizado por {h.responsavel}</p>
-                        </div>
-                        <span className="text-[10px] font-black text-green-600 uppercase bg-green-50 px-2 py-1 rounded">Concluído ✅</span>
-                      </motion.div>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
+            {/* ARQUIVO MORTO AGRUPADO POR OPERADOR */}
+            <div className="mt-12 bg-white/40 p-6 rounded-[2.5rem] border-2 border-dashed border-slate-200">
+               <button onClick={() => setMostrarHistorico(!mostrarHistorico)} className="w-full text-center font-black uppercase text-xs text-slate-400 hover:text-blue-500 transition-all">
+                 {mostrarHistorico ? '▲ Fechar Arquivo Morto' : '▼ Abrir Arquivo Morto (Concluídos)'}
+               </button>
+
+               <AnimatePresence>
+                 {mostrarHistorico && (
+                   <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="mt-8 space-y-8">
+                     {/* Agrupamento por Operador */}
+                     {[...new Set(historico.map(h => h.responsavel))].map(resp => (
+                       <div key={resp} className="space-y-3">
+                         <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest bg-slate-100 w-fit px-3 py-1 rounded-full italic">Demandas de {resp || 'EQUIPE'}</h4>
+                         {historico.filter(h => h.responsavel === resp).map(item => (
+                           <div key={item.id} className="bg-white p-4 rounded-2xl flex justify-between items-center shadow-sm border border-slate-50">
+                             <div>
+                               <p className="font-black text-slate-700 uppercase text-xs">{item.orgao}</p>
+                               <p className="text-[9px] font-bold text-slate-400 uppercase">{item.servico}</p>
+                             </div>
+                             <span className="text-[9px] font-black text-green-600 bg-green-50 px-2 py-1 rounded">CHECK ✅</span>
+                           </div>
+                         ))}
+                       </div>
+                     ))}
+                   </motion.div>
+                 )}
+               </AnimatePresence>
             </div>
           </div>
         </div>
