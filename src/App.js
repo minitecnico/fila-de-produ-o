@@ -55,7 +55,7 @@ function App() {
     await addDoc(collection(db, "contratos"), {
       orgao: cidade, 
       servico: formData.servico.toUpperCase(), 
-      fonte: formData.fonte.toUpperCase(), // SALVANDO A ORIGEM AQUI
+      fonte: formData.fonte.toUpperCase(), 
       status: 'RECEBIDO', 
       responsavel: '', 
       created_at: serverTimestamp()
@@ -79,12 +79,12 @@ function App() {
     const filtrados = contratos.filter(c => c.status === 'CONCLUIDO' && c.finished_at?.split('T')[0] === filtroData);
     if (tipo === 'excel') {
       const ws = XLSX.utils.json_to_sheet(filtrados.map(t => ({ Orgão: t.orgao, Serviço: t.servico, Origem: t.fonte, Operador: t.responsavel, Hora: formatarData(t.finished_at) })));
-      const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Produção");
-      XLSX.writeFile(wb, `Relatorio_${filtroData}.xlsx`);
+      const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Fila");
+      XLSX.writeFile(wb, `Fila_${filtroData}.xlsx`);
     } else {
       const docPDF = new jsPDF();
       docPDF.autoTable({ head: [['Cidade', 'Serviço', 'Origem', 'Operador', 'Conclusão']], body: filtrados.map(t => [t.orgao, t.servico, t.fonte, t.responsavel, formatarData(t.finished_at)]) });
-      docPDF.save(`Relatorio_${filtroData}.pdf`);
+      docPDF.save(`Fila_${filtroData}.pdf`);
     }
   };
 
@@ -99,62 +99,60 @@ function App() {
           {/* PAINEL ADMIN MESTRE */}
           <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Painel Administrativo</h3>
-              <button onClick={isAdmin ? () => setIsAdmin(false) : handleLoginAdmin} className={`text-[9px] px-3 py-1 rounded-full font-bold transition-all ${isAdmin ? 'bg-red-50 text-red-500' : 'bg-slate-100 text-slate-500'}`}>
-                {isAdmin ? 'Sair ADM' : 'Login ADM'}
-              </button>
+              <h3 className="text-[10px] font-black uppercase text-slate-400">ADM Master</h3>
+              {!isAdmin ? (
+                <button onClick={handleLoginAdmin} className="text-[9px] bg-slate-100 px-3 py-1 rounded-full font-bold">Login</button>
+              ) : (
+                <button onClick={() => setIsAdmin(false)} className="text-[9px] bg-red-50 text-red-500 px-3 py-1 rounded-full font-bold">Sair</button>
+              )}
             </div>
             {isAdmin && (
-              <div className="space-y-2 py-2 border-t border-slate-50">
+              <div className="space-y-2 animate-in fade-in">
                 {operadoresDB.map(op => (
-                  <div key={op.id} className="flex justify-between items-center bg-slate-50 p-2 rounded-xl text-[10px] font-bold">
-                    <span>{op.nome}</span>
-                    <button onClick={() => deletarUsuario(op.id)} className="text-red-400 hover:text-red-600">Remover</button>
+                  <div key={op.id} className="flex justify-between items-center bg-slate-50 p-2 rounded-xl border border-slate-100">
+                    <span className="text-[10px] font-black">{op.nome}</span>
+                    <button onClick={() => deletarUsuario(op.id)} className="bg-red-500 text-white px-2 py-1 rounded-lg text-[10px]">🗑️</button>
                   </div>
                 ))}
-                <button onClick={cadastrarNovoOperador} className="w-full bg-slate-800 text-white p-2 rounded-xl text-[9px] font-black uppercase mt-2">+ Adicionar Operador</button>
+                <button onClick={cadastrarNovoOperador} className="w-full bg-slate-900 text-white p-2 rounded-xl text-[10px] font-black uppercase">+ Novo Operador</button>
               </div>
             )}
           </div>
 
-          {/* LOGIN OPERADOR (FIXO) */}
+          {/* SELEÇÃO/LOGIN OPERADOR */}
           <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200">
-            <label className="text-[10px] font-black uppercase text-slate-400 mb-3 block italic">Operador do Turno:</label>
+            <label className="text-[10px] font-black uppercase text-slate-400 mb-2 block tracking-widest italic">Operador Atual:</label>
             {!operadorAtual ? (
-              <select className="w-full p-4 bg-slate-50 rounded-2xl font-bold text-sm outline-none border border-slate-100 focus:ring-2 focus:ring-blue-100 transition-all" 
+              <select className="w-full p-4 bg-slate-50 rounded-2xl font-bold text-sm outline-none border border-slate-100" 
                 onChange={(e) => setOperadorAtual(operadoresDB.find(o => o.id === e.target.value))}>
                 <option value="">QUEM ESTÁ OPERANDO?</option>
                 {operadoresDB.map(op => <option key={op.id} value={op.id}>{op.nome}</option>)}
               </select>
             ) : (
               <div className="flex items-center justify-between bg-blue-600 p-4 rounded-2xl shadow-lg shadow-blue-100">
-                <span className="font-black text-white uppercase text-sm">{operadorAtual.nome}</span>
-                <button onClick={() => setOperadorAtual(null)} className="bg-white/20 hover:bg-white/40 text-white w-8 h-8 rounded-full font-black text-xs flex items-center justify-center transition-all">X</button>
+                <span className="font-black text-white uppercase text-sm tracking-tight">{operadorAtual.nome}</span>
+                <button onClick={() => setOperadorAtual(null)} className="bg-white/20 hover:bg-white/40 text-white w-8 h-8 rounded-full font-black text-xs flex items-center justify-center transition-all">✕</button>
               </div>
             )}
           </div>
 
           {/* LANÇAMENTO */}
           <div className={`bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-200 transition-all ${!operadorAtual ? 'opacity-30 grayscale pointer-events-none' : ''}`}>
-             <h2 className="text-sm font-black mb-6 uppercase text-slate-400 text-center tracking-widest italic">Nova Demanda</h2>
+             <h2 className="text-sm font-black mb-6 uppercase text-slate-400 text-center tracking-widest italic">Lançar Demanda</h2>
              <form onSubmit={handleSubmit} className="space-y-4">
-                <input ref={orgaoInputRef} required className="w-full p-4 bg-slate-50 rounded-2xl font-bold uppercase outline-none border border-transparent focus:border-slate-200 text-sm" placeholder="CIDADE / ÓRGÃO" value={formData.orgao} onChange={e => setFormData({...formData, orgao: e.target.value})} />
-                
-                <input list="servs" required className="w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none border border-transparent focus:border-slate-200 text-sm" placeholder="SERVIÇO" value={formData.servico} onChange={e => setFormData({...formData, servico: e.target.value})} />
+                <input ref={orgaoInputRef} required className="w-full p-4 bg-slate-50 rounded-2xl font-bold uppercase outline-none border border-transparent focus:border-slate-200" placeholder="CIDADE / ÓRGÃO" value={formData.orgao} onChange={e => setFormData({...formData, orgao: e.target.value})} />
+                <input list="servs" required className="w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none border border-transparent focus:border-slate-200" placeholder="SERVIÇO" value={formData.servico} onChange={e => setFormData({...formData, servico: e.target.value})} />
                 <datalist id="servs">
                    {["CONTRATO", "E-MAIL", "WhatsApp", "ADITIVO", "APRESENTAÇÃO SICC", "PROPOSTA"].map(s => <option key={s} value={s} />)}
                 </datalist>
-
-                {/* CAMPO ORIGEM ESTÁ AQUI */}
-                <input required className="w-full p-4 bg-slate-50 rounded-2xl font-bold uppercase outline-none border border-transparent focus:border-slate-200 text-sm" placeholder="ORIGEM (Ex: WhatsApp, E-mail)" value={formData.fonte} onChange={e => setFormData({...formData, fonte: e.target.value})} />
-                
+                <input required className="w-full p-4 bg-slate-50 rounded-2xl font-bold uppercase outline-none border border-transparent focus:border-slate-200" placeholder="ORIGEM / FONTE" value={formData.fonte} onChange={e => setFormData({...formData, fonte: e.target.value})} />
                 <button type="submit" className="w-full bg-slate-900 text-white p-5 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl active:scale-95 transition-all">Registrar na Fila</button>
              </form>
           </div>
 
           {/* EXPORTAÇÃO */}
           <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-200">
-            <h3 className="text-[9px] font-black uppercase mb-4 text-slate-300 text-center tracking-widest">Relatórios</h3>
+            <h3 className="text-[9px] font-black uppercase mb-4 text-slate-300 text-center">Relatórios</h3>
             <input type="date" className="w-full p-3 bg-slate-50 rounded-xl text-sm font-bold outline-none mb-3 border border-slate-100" value={filtroData} onChange={e => setFiltroData(e.target.value)} />
             <div className="grid grid-cols-2 gap-2">
               <button onClick={() => exportarRelatorio('excel')} className="bg-[#21a366] text-white p-3 rounded-xl font-black text-[10px] uppercase">Excel</button>
@@ -164,7 +162,7 @@ function App() {
         </div>
 
         <div className="lg:col-span-2 space-y-4">
-          <h2 className="text-2xl font-black uppercase text-slate-200 italic px-4 tracking-tighter">Painel de Atendimento</h2>
+          <h2 className="text-2xl font-black uppercase text-slate-200 italic px-4">Painel de Atendimento</h2>
           
           <AnimatePresence>
             {filaAtiva.map((c, index) => (
@@ -175,13 +173,13 @@ function App() {
                   <div className="flex items-center gap-3">
                     <span className="bg-slate-900 text-white w-7 h-7 rounded-full flex items-center justify-center font-black text-[10px]">#{index + 1}</span>
                     <h3 className="font-black text-lg uppercase text-slate-700 tracking-tighter">{c.orgao}</h3>
-                    {isAdmin && <button onClick={() => deletarAtividade(c.id)} className="text-red-300 hover:text-red-500 text-[9px] uppercase font-bold">Excluir</button>}
+                    {isAdmin && <button onClick={() => deletarAtividade(c.id)} className="text-red-300 hover:text-red-500 text-[10px] uppercase font-bold">Excluir</button>}
                   </div>
-                  <div className="flex gap-2 items-center mt-1 ml-10">
+                  <div className="flex items-center gap-2 mt-1 ml-10">
                     <p className="font-black text-blue-500 uppercase text-[11px]">{c.servico}</p>
-                    <span className="text-slate-400 text-[10px] font-black bg-slate-100 px-2 py-0.5 rounded uppercase tracking-tighter">ORIGEM: {c.fonte || 'N/A'}</span>
+                    <span className="text-slate-300 text-[10px] font-bold">• {c.fonte || 'S/ ORIGEM'}</span>
                   </div>
-                  {c.responsavel && <p className="text-[9px] font-black text-orange-400 uppercase mt-2 ml-10 italic">Produção: {c.responsavel}</p>}
+                  {c.responsavel && <p className="text-[9px] font-black text-orange-400 uppercase mt-2 ml-10 italic">Em produção: {c.responsavel}</p>}
                 </div>
                 <div className="mt-4 md:mt-0 flex gap-2">
                   {c.status === 'RECEBIDO' ? (
@@ -196,20 +194,20 @@ function App() {
 
           <div className="mt-12 bg-slate-100/50 p-6 rounded-[2.5rem] border-2 border-dashed border-slate-200">
             <button onClick={() => setMostrarHistorico(!mostrarHistorico)} className="w-full text-center font-black uppercase text-[10px] text-slate-400 tracking-widest hover:text-slate-600 transition-all">
-              {mostrarHistorico ? '▲ Recolher Histórico' : '▼ Ver Atividades Concluídas'}
+              {mostrarHistorico ? '▲ Recolher Histórico' : '▼ Ver Concluídos'}
             </button>
             {mostrarHistorico && (
               <div className="mt-6 space-y-3">
                 {historico.slice().reverse().map(item => (
                   <div key={item.id} className="bg-white p-5 rounded-[1.5rem] flex justify-between items-center shadow-sm border border-slate-50">
-                    <div className="flex-1">
+                    <div>
                       <p className="font-black text-slate-600 uppercase text-[11px]">{item.orgao}</p>
-                      <p className="text-[9px] font-bold text-blue-400 uppercase">{item.servico} <span className="text-slate-400 ml-1">| ORIGEM: {item.fonte}</span></p>
+                      <p className="text-[9px] font-bold text-blue-400 uppercase">{item.servico} <span className="text-slate-300 ml-1">({item.fonte})</span></p>
                     </div>
                     <div className="text-right flex flex-col items-end">
                       <span className="text-[9px] font-black text-slate-400 uppercase">Operador: {item.responsavel}</span>
                       <span className="text-[10px] font-bold text-green-500 bg-green-50 px-3 py-1 rounded-full mt-1">✓ {formatarData(item.finished_at)}</span>
-                      {isAdmin && <button onClick={() => deletarAtividade(item.id)} className="text-[8px] text-red-300 mt-2 uppercase font-bold hover:text-red-500 transition-all">Excluir Log</button>}
+                      {isAdmin && <button onClick={() => deletarAtividade(item.id)} className="text-[8px] text-red-300 mt-2 uppercase font-bold hover:text-red-500">Excluir Log</button>}
                     </div>
                   </div>
                 ))}
